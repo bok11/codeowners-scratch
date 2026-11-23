@@ -1,0 +1,36 @@
+name: Bot pull request
+
+on:
+  workflow_dispatch:
+    inputs:
+      kind:
+        description: "tag or manifest"
+        required: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  open:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Make the change and open a pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          KIND: ${{ inputs.kind }}
+        run: |
+          set -euo pipefail
+          branch="bot-$KIND-${{ github.run_id }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
+          if [ "$KIND" = "tag" ]; then
+            sed -i "s/newTag: .*/newTag: bot${{ github.run_id }}/" tags/kustomization.yaml
+          else
+            sed -i "s/replicas: .*/replicas: 5/" base/demo-api/demo-api.deployment.yaml
+          fi
+          git commit -am "chore: bot $KIND change"
+          git push origin "$branch"
+          gh pr create --head "$branch" --base main --title "Bot $KIND change" --body "Opened by a workflow."
